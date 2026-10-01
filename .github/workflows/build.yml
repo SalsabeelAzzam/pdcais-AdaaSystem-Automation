@@ -1,0 +1,32 @@
+name: Build
+
+# Compiles the suite without running it.
+#
+# A pull request to this repository can be checked without a live environment and
+# without credentials: this catches the ordinary mistakes - a broken page object, a
+# renamed method, an import that no longer resolves - in about a minute. Running the
+# tests themselves needs a deployed application, which is what automation.yml is for.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Compile tests
+        run: ./mvnw --batch-mode clean test-compile

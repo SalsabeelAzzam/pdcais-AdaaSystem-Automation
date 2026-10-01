@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+  Explicit suite definition, used by `./mvnw clean test -Psuite`.
+
+  The ordinary `./mvnw clean test` does not use this file: Surefire ignores
+  -Dgroups when a suite file is configured, and selecting groups from the command
+  line is the common case. Both routes run the same classes.
+
+  thread-count is 1 deliberately. Every test already owns its own BrowserContext,
+  so raising it is a one-line change - but a suite that is reliable first is worth
+  more than a suite that is fast first.
+-->
+<suite name="adaa-automation" verbose="1" parallel="methods" thread-count="1">
+  <test name="smoke">
+    <groups>
+      <run>
+        <include name="smoke"/>
+      </run>
+    </groups>
+    <classes>
+      <class name="com.adaa.automation.tests.LoginTests"/>
+      <class name="com.adaa.automation.tests.ObjectiveTests"/>
+    </classes>
+  </test>
+
+  <test name="regression">
+    <groups>
+      <run>
+        <include name="regression"/>
+      </run>
+    </groups>
+    <classes>
+      <class name="com.adaa.automation.tests.LoginTests"/>
+      <class name="com.adaa.automation.tests.ObjectiveTests"/>
+    </classes>
+  </test>
+</suite>

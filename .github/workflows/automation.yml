@@ -1,0 +1,127 @@
+name: E2E automation
+
+# Runs the black-box suite against a deployed environment.
+#
+# Three ways in:
+#   workflow_dispatch    - a person runs it from the Actions tab
+#   repository_dispatch  - another pipeline runs it after a deployment (see README)
+#   schedule             - a nightly run, so a broken environment is noticed without
+#                          anyone having to ask
+#
+# This workflow never contains a URL or a credential. Everything comes from the
+# GitHub Environment it runs in, or from the payload of the call that triggered it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub Environment holding the URL and account to use
+        type: environment
+        required: true
+      suite:
+        description: Which tests to run
+        type: choice
+        options: [smoke, regression, all]
+        default: smoke
+      base_url:
+        description: Override the Environment's AUTOMATION_BASE_URL (optional)
+        type: string
+        required: false
+
+  repository_dispatch:
+    types: [adaa-deployed]
+
+  schedule:
+    # 02:00 UTC daily.
+    - cron: '0 2 * * *'
+
+concurrency:
+  # One run per environment: two suites signing in as the same account and creating
+  # records at the same time is a source of failures that are not defects.
+  group: automation-${{ github.event.inputs.environment || github.event.client_payload.environment || 'qa' }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    environment: ${{ github.event.inputs.environment || github.event.client_payload.environment || 'qa' }}
+
+    env:
+      # An input wins, then a trigger payload, then the Environment's own variable.
+      AUTOMATION_BASE_URL: ${{ github.event.inputs.base_url || github.event.client_payload.base_url || vars.AUTOMATION_BASE_URL }}
+      AUTOMATION_USERNAME: ${{ secrets.AUTOMATION_USERNAME }}
+      AUTOMATION_PASSWORD: ${{ secrets.AUTOMATION_PASSWORD }}
+      AUTOMATION_ENV: ${{ github.event.inputs.environment || github.event.client_payload.environment || 'qa' }}
+      # CI always runs headless; only a developer's machine runs headed.
+      AUTOMATION_HEADLESS: 'true'
+      SUITE: ${{ github.event.inputs.suite || github.event.client_payload.suite || (github.event_name == 'schedule' && 'all') || 'smoke' }}
+
+    steps:
+      - name: Check out the automation repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pom.xml') }}
+          restore-keys: playwright-${{ runner.os }}-
+
+      - name: Fail early if the environment is not configured
+        run: |
+          if [ -z "${AUTOMATION_BASE_URL}" ]; then
+            echo "::error::AUTOMATION_BASE_URL is not set. Add it as a variable on the '${AUTOMATION_ENV}' Environment, or pass base_url to the run."
+            exit 1
+          fi
+          echo "Target environment : ${AUTOMATION_ENV}"
+          echo "Suite              : ${SUITE}"
+
+      - name: Install Chromium
+        run: ./mvnw --batch-mode test-compile exec:java -D exec.args="install --with-deps chromium"
+
+      - name: Run the suite
+        run: |
+          if [ "${SUITE}" = "all" ]; then
+            ./mvnw --batch-mode test
+          else
+            ./mvnw --batch-mode test -Dgroups="${SUITE}"
+          fi
+
+      - name: Publish test results
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: target/surefire-reports/TEST-*.xml
+          check_name: E2E automation (${{ env.AUTOMATION_ENV }})
+          detailed_summary: true
+          include_passed: true
+          # A failed test is reported by the job itself; this step only publishes.
+          fail_on_failure: false
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ env.AUTOMATION_ENV }}-${{ github.run_number }}
+          path: target/surefire-reports/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          # Screenshots, Playwright traces, browser console output and page errors.
+          name: failure-artifacts-${{ env.AUTOMATION_ENV }}-${{ github.run_number }}
+          path: target/automation-artifacts/
+          retention-days: 14
+          if-no-files-found: ignore

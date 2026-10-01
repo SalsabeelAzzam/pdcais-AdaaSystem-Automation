@@ -1,0 +1,26 @@
+# Maven
+target/
+
+# Maven Wrapper downloads its own distribution; nothing binary is committed.
+.mvn/wrapper/maven-wrapper.jar
+
+# Playwright
+/test-results/
+*.trace.zip
+
+# Local environment files - these may contain credentials and must never be committed.
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+Thumbs.db
+.DS_Store
