@@ -41,13 +41,42 @@ public abstract class BasePage {
         }
     }
 
+    /**
+     * Runs an action that makes the page reload itself, and waits for the reloaded page.
+     *
+     * <p>Such actions often change the current page first and reload it a moment later, so
+     * nothing visible proves the reload has happened. The current page is marked before the
+     * action; the wait ends on a fully loaded page that no longer carries the mark.
+     */
+    protected void waitForReloadAfter(Runnable action) {
+        markPageBeforeReload();
+        action.run();
+        waitForReloadedPage();
+    }
+
+    /** Marks the current page, for {@link #waitForReloadedPage()}. */
+    protected void markPageBeforeReload() {
+        page.evaluate("() => { window.__automationBeforeReload = true; }");
+    }
+
+    /** Waits for a fully loaded page that is not the one {@link #markPageBeforeReload()} marked. */
+    protected void waitForReloadedPage() {
+        page.waitForFunction(
+                "() => !window.__automationBeforeReload && document.readyState === 'complete'",
+                null,
+                new Page.WaitForFunctionOptions().setTimeout(30_000));
+    }
+
     public String currentUrl() {
         return page.url();
     }
 
-    /** The document direction, which is "rtl" on the Arabic pages. */
+    /**
+     * The page direction, "rtl" on the Arabic pages. The application sets it on
+     * {@code <body>}; {@code <html>} carries no direction at all.
+     */
     public String documentDirection() {
-        return page.locator("html").getAttribute("dir");
+        return page.locator("body").getAttribute("dir");
     }
 
     public String documentLanguage() {

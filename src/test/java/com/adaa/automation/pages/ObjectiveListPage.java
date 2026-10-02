@@ -1,5 +1,6 @@
 package com.adaa.automation.pages;
 
+import com.adaa.automation.utils.TestData;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Response;
@@ -8,9 +9,11 @@ import com.microsoft.playwright.options.WaitForSelectorState;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
- * The objectives list: its table, the search box and the Add button.
+ * The objectives list: its table, the search box and the Add button - and the way into the
+ * add/edit form and the detail page, which are reached from here rather than by address.
  */
 public final class ObjectiveListPage extends BasePage {
 
@@ -20,6 +23,9 @@ public final class ObjectiveListPage extends BasePage {
     /** The request the table loads its rows with, as seen in the browser's network traffic. */
     private static final String TABLE_DATA_PATH = "/GetAllObjectivePaginated";
     private static final String SEARCH_PARAMETER = "searchTerm";
+
+    /** Zero-based position of the Objective Name column. */
+    private static final int NAME_COLUMN = 1;
 
     public ObjectiveListPage(Page page) {
         super(page);
@@ -59,11 +65,6 @@ public final class ObjectiveListPage extends BasePage {
         navigateTo(PATH);
     }
 
-    /** Opens the list in a specific language, to check the page renders in it. */
-    public void openInLanguage(String culture) {
-        navigateTo(PATH + "?culture=" + culture);
-    }
-
     /** The control that opens a row for editing. */
     public Locator editControlIn(Locator row) {
         return row.locator("[class*='edit'], [onclick*='Edit'], a[href*='AddEdit']");
@@ -72,6 +73,173 @@ public final class ObjectiveListPage extends BasePage {
     /** The control that opens a row's read-only detail page. */
     public Locator viewControlIn(Locator row) {
         return row.locator("[class*='viewDetails'], [onclick*='ViewDetails'], a[href*='ViewDetails']");
+    }
+
+    /** The control that starts deleting a row; it opens a confirmation dialog. */
+    public Locator deleteControlIn(Locator row) {
+        return row.locator("[onclick*='StartDeleting']");
+    }
+
+    /** The delete confirmation dialog. It does not name the record it is about to delete. */
+    public Locator deleteDialog() {
+        return page.locator("#deleteRecored");
+    }
+
+    // ---- reaching the form and the detail page ------------------------------
+
+    /**
+     * Opens the add form the way a user does, from this list's Add button.
+     *
+     * <p>Never by its address: see {@link ObjectiveFormPage} for why the form must be
+     * reached from another page of the application in the same tab.
+     */
+    public ObjectiveFormPage openAddForm() {
+        waitForRows();
+        addButton().click();
+        page.waitForURL(url -> url.contains("/Objective/AddEdit"));
+        ObjectiveFormPage form = new ObjectiveFormPage(page);
+        form.waitForReady();
+        return form;
+    }
+
+    /** Finds the one objective matching {@code text} and opens it for editing. */
+    public ObjectiveFormPage openEditFor(String text) {
+        editControlIn(onlyRowMatching(text)).first().click();
+        page.waitForURL(url -> url.contains("/Objective/AddEdit"));
+        ObjectiveFormPage form = new ObjectiveFormPage(page);
+        form.waitForReady();
+        form.waitForLoadedValues();
+        return form;
+    }
+
+    /** Finds the one objective matching {@code text} and opens its detail page. */
+    public ObjectiveDetailsPage openViewFor(String text) {
+        return openView(onlyRowMatching(text));
+    }
+
+    /** Opens the detail page of a row already on screen. */
+    public ObjectiveDetailsPage openView(Locator row) {
+        ObjectiveDetailsPage details = new ObjectiveDetailsPage(page);
+        details.openVia(() -> viewControlIn(row).first().click());
+        return details;
+    }
+
+    // ---- reading the table ---------------------------------------------------
+
+    /** The column headers, in order, as the user sees them. */
+    public List<String> columnHeaders() {
+        return table().locator("thead th").allInnerTexts().stream().map(String::trim).toList();
+    }
+
+    /** The first row holding an objective rather than a placeholder. */
+    public Locator firstDataRow() {
+        return page.locator("#objectivesTableId tbody tr:not(:has(td.dt-empty)):not(:has(td.dataTables_empty))")
+                .first();
+    }
+
+    /**
+     * One cell of a row, found by its column's header text. Looked up by header rather than
+     * by position so that a test says which column it means, in the language on screen.
+     */
+    public String cellText(Locator row, String header) {
+        return row.locator("td").nth(columnIndex(header)).innerText().trim();
+    }
+
+    /** Every value in one column, for the rows on the current page. */
+    public List<String> columnValues(String header) {
+        int index = columnIndex(header);
+        Object values = page.locator("#objectivesTableId tbody tr:not(:has(td.dt-empty))")
+                .evaluateAll("(rows, i) => rows.map(r => (r.cells[i]?.innerText || '').trim())", index);
+        return ((List<?>) values).stream().map(String::valueOf).toList();
+    }
+
+    private int columnIndex(String header) {
+        List<String> headers = columnHeaders();
+        int index = headers.indexOf(header);
+        if (index < 0) {
+            throw new IllegalArgumentException("no column '" + header + "' in " + headers);
+        }
+        return index;
+    }
+
+    /** Searches for {@code text} and returns its row, failing unless exactly one matches. */
+    public Locator onlyRowMatching(String text) {
+        search(text);
+        Locator matches = rowContaining(text);
+        int count = matches.count();
+        if (count != 1) {
+            throw new AssertionError("expected exactly one objective matching '" + text
+                    + "' but the list shows " + count);
+        }
+        return matches.first();
+    }
+
+    // ---- cleaning up ---------------------------------------------------------
+
+    /**
+     * Deletes an objective this suite created, if it is still there.
+     *
+     * <p>Deliberately hard to point at the wrong record: the name must be one
+     * {@link TestData} generated, exactly one row may match it, and the confirmation dialog
+     * must name it. Anything else is refused rather than guessed at - an objective that was
+     * not ours must never be deleted.
+     *
+     * @return whether an objective was deleted; false when none matched
+     */
+    public boolean deleteIfPresent(String name) {
+        if (!TestData.isGenerated(name)) {
+            throw new IllegalArgumentException("refusing to delete '" + name
+                    + "': it is not a name this suite generated");
+        }
+        search(name);
+        Locator matches = rowContaining(name);
+        int count = matches.count();
+        if (count == 0) {
+            return false;
+        }
+        if (count > 1) {
+            throw new IllegalStateException("refusing to delete '" + name + "': " + count
+                    + " objectives match it");
+        }
+
+        // The confirmation dialog does not name the record ("You are about to delete an
+        // Objective"), so the record is pinned down before it opens: the row's name cell
+        // must be exactly this name, and the delete button being clicked must carry it in
+        // the row data it hands to the page.
+        Locator row = matches.first();
+        String rowName = row.locator("td").nth(NAME_COLUMN).innerText().trim();
+        Locator deleteButton = deleteControlIn(row).first();
+        String payload = String.valueOf(deleteButton.getAttribute("onclick"));
+        if (!rowName.equals(name) || !payload.contains(name)) {
+            throw new IllegalStateException("refusing to delete '" + name
+                    + "': the matching row is named '" + rowName + "'");
+        }
+
+        deleteButton.click();
+        deleteDialog().waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+
+        // After a delete the page reloads the list, a couple of seconds later; the check
+        // below runs on the reloaded page, not on this one.
+        markPageBeforeReload();
+        Response deleted = page.waitForResponse(
+                response -> response.url().contains("/ObjectiveGW/")
+                        && !"GET".equals(response.request().method()),
+                () -> deleteDialog().locator("#btnDelete").click());
+        if (!deleted.ok()) {
+            throw new IllegalStateException("deleting '" + name + "' was refused: HTTP "
+                    + deleted.status());
+        }
+        waitForReloadedPage();
+
+        // The reloaded list restores the search for the record just deleted, so it may be
+        // showing only the empty-result row: wait for the table, not for data rows.
+        table().waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE));
+        waitForTableToSettle();
+        search(name);
+        if (rowContaining(name).count() != 0) {
+            throw new IllegalStateException("'" + name + "' is still listed after deleting it");
+        }
+        return true;
     }
 
     /** The application's access-denied screen, which a refused page redirects to. */
@@ -133,8 +301,20 @@ public final class ObjectiveListPage extends BasePage {
      * search only after a short delay, and until then the old rows sit perfectly still. So
      * this waits for the table's own data response for exactly this term, then for the
      * redraw that follows it.
+     *
+     * <p>The application remembers the list's last search and puts it back when the user
+     * returns to the list - after a save, for one. Typing that same term again changes
+     * nothing, so the table sends nothing and there would be no response to wait for. A
+     * term already in the box is therefore cleared first, as a user would clear it, so the
+     * search below is always one the table actually runs.
      */
     public void search(String term) {
+        if (!searchBox().inputValue().isEmpty()) {
+            clearSearch();
+        }
+        if (term.isEmpty()) {
+            return;
+        }
         page.waitForResponse(response -> isTableResponseFor(response, term),
                 () -> searchBox().fill(term));
         waitForTableToSettle();
@@ -144,9 +324,14 @@ public final class ObjectiveListPage extends BasePage {
      * Clears the search and waits for the unfiltered table.
      *
      * <p>Clearing the box can first send one more request with the old term still in it;
-     * waiting for a response with no term at all skips past that one.
+     * waiting for a response with no term at all skips past that one. An empty box is
+     * already showing the unfiltered table, and emptying it again would send nothing.
      */
     public void clearSearch() {
+        if (searchBox().inputValue().isEmpty()) {
+            waitForTableToSettle();
+            return;
+        }
         page.waitForResponse(response -> isTableResponseFor(response, ""),
                 () -> searchBox().fill(""));
         waitForTableToSettle();

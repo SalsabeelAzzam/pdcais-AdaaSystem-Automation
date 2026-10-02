@@ -35,6 +35,20 @@ changes — as long as the application still behaves the same way for a user.
 | `ObjectiveTests.createObjectiveAndVerifyItPersists` | regression | An objective created through the form appears in the list, and reopening it shows what was saved |
 | `ObjectiveTests.editObjectiveDescriptionAndVerifyItPersists` | regression | An edited description survives a reopen |
 | `ObjectiveTests.arabicPageRendersRightToLeft` | regression | The Arabic page renders RTL |
+| `ObjectiveTests.listShowsTheExpectedColumns` | smoke | OBJ-SMK-04: all 13 list columns, in order |
+| `ObjectiveTests.viewShowsTheObjectiveOpenedFromTheList` | smoke | OBJ-SMK-05: the detail page shows the row that was opened |
+| `ObjectiveTests.emptySaveIsRefusedWithRequiredFieldMessages` | smoke | OBJ-SMK-07: an empty save is refused, nothing is sent |
+| `ObjectiveTests.nameLengthIsLimitedTo255CharactersOnBothNames` | regression | OBJ-NEG-01: 256-character names are refused, 255 accepted |
+| `ObjectiveTests.objectiveWith255CharacterNamesIsSaved` | regression | OBJ-NEG-01: 255-character names are saved in full |
+| `ObjectiveTests.closingANewObjectiveAsksBeforeDiscardingIt` | regression | OBJ-CRUD-14: Close confirms; No keeps, Yes discards |
+| `ObjectiveTests.institutionalSwitchIsOfferedOnTheMonitoringEntity` | regression | OBJ-INST-01: the Institutional switch is offered and toggles |
+| `ObjectiveTests.institutionalSwitchAndPickerAreHiddenOnAParticipatingEntity` | regression | OBJ-INST-01 / OBJ-PE-03: neither is offered on a participating entity |
+| `ObjectiveTests.institutionalObjectiveShowsYesEverywhere` | regression | OBJ-INST-03: Yes in list, detail page and form |
+| `ObjectiveTests.institutionalStateCanBeChangedOnEdit` | regression | OBJ-INST-04: Institutional changed on Edit, both ways |
+| `ObjectiveTests.participatingEntitiesPickerMovesEntitiesBothWays` | regression | OBJ-PE-03: the picker moves, moves all and filters |
+| `ObjectiveTests.selectedParticipatingEntitiesPersist` | regression | OBJ-PE-04: chosen entities are still selected on reopen |
+| `ObjectiveTests.viewListsTheParticipatingEntities` | regression | OBJ-PE-07: the detail page lists the chosen entities |
+| `ObjectiveTests.arabicListShowsArabicLabelsAndInstitutionalValues` | regression | OBJ-AR-02: Arabic headers, نعم / لا |
 
 **smoke** is the fast set that answers "is this deployment usable at all" — it is what a
 post-deployment run should execute. **regression** is the broader set that creates and
@@ -117,7 +131,9 @@ src/test/java/com/adaa/automation/
 ├── fixtures/   BaseTest          - browser lifecycle, artifact capture
 │               AuthenticatedTest - the same, already signed in
 │               AuthSession       - signs in once per run
-├── pages/      LoginPage, ObjectiveListPage, ObjectiveFormPage, ObjectiveDetailsPage
+├── pages/      LoginPage, AppHeader (language toggle), ObjectiveListPage,
+│               ObjectiveFormPage, ObjectiveDetailsPage
+│   └── components/  Select2Dropdown - the application's rich dropdowns
 └── tests/      LoginTests, ObjectiveTests
 ```
 
@@ -218,5 +234,12 @@ nightly on its schedule. Both are fully supported today.
 1. Put the selectors in the page object, never in the test.
 2. Extend `AuthenticatedTest` if the test needs to be signed in, `BaseTest` if not.
 3. Give it a group: `smoke` if it is fast and critical, `regression` otherwise.
-4. Generate any data it needs with `TestData.uniqueName(...)`.
+4. Generate any data it needs with `TestData.uniqueName(...)`, with an `auto-` prefix.
 5. Assume nothing about what already exists in the environment.
+6. Reach the objective add/edit form from the list (`ObjectiveListPage.openAddForm()` /
+   `openEditFor(...)`), never by its address: the form hides the Institutional Item switch
+   and the Participating Entities picker until the header has selected an entity.
+7. Register every objective a test creates with `createsObjective(name)`; it is deleted
+   when the test finishes. Only names this suite generated are ever deleted.
+8. Switch language with `AppHeader` and switch back to English in a `finally`: the toggle
+   also saves the account's preferred language.
