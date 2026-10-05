@@ -106,8 +106,8 @@ public class LoginTests extends BaseTest {
         }
 
         // Kept for the pages that follow, and the sign-in completed.
-        String kept = login.sessionStorageItem(ColorConfiguration.SESSION_KEY);
-        assertTrue(kept != null, "the application must keep the color configuration in session storage");
+        String kept = login.localStorageItem(ColorConfiguration.STORAGE_KEY);
+        assertTrue(kept != null, "the application must keep the color configuration in local storage");
         assertEquals(JsonParser.parseString(kept), JsonParser.parseString(body),
                 "the application must keep exactly the color configuration it received");
         assertFalse(login.isOnLoginPage(), "the sign-in must move on once the colors are loaded");

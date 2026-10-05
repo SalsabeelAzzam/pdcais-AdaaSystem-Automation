@@ -4,7 +4,6 @@ import com.adaa.automation.pages.AppHeader;
 import com.adaa.automation.pages.ObjectiveDetailsPage;
 import com.adaa.automation.pages.ObjectiveFormPage;
 import com.adaa.automation.pages.ObjectiveListPage;
-import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Page;
 import org.testng.annotations.AfterMethod;
 
@@ -30,12 +29,6 @@ public abstract class AuthenticatedTest extends BaseTest {
     @Override
     protected Path storageState() {
         return AuthSession.storageState();
-    }
-
-    /** The cookies alone are not a signed-in session here; see {@link AuthSession}. */
-    @Override
-    protected void prepareContext(BrowserContext context) {
-        AuthSession.restoreSessionStorage(context);
     }
 
     protected ObjectiveListPage objectiveList() {

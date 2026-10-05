@@ -286,7 +286,7 @@ public final class ObjectiveListPage extends BasePage {
         if (page.url().contains(ACCESS_DENIED_PATH) || accessDenied().isVisible()) {
             throw new AssertionError("Application redirected to /Error/Index (access denied)"
                     + " instead of showing the objective list. Check authenticated"
-                    + " sessionStorage/permissions. Current URL: " + page.url());
+                    + " localStorage/permissions. Current URL: " + page.url());
         }
     }
 

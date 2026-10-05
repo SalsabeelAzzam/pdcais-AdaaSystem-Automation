@@ -24,7 +24,7 @@ import java.util.function.Predicate;
  *       cookie, and the gateway forwards the signed-in user's token to the API.</li>
  *   <li>Called once per sign-in, by the sign-in page, after the credentials have been
  *       accepted and before the page navigates on. The page waits for it: it moves on only
- *       when the answer is a non-empty list, which it keeps in session storage under
+ *       when the answer is a non-empty list, which it keeps in local storage under
  *       {@code colorConfig} for the pages that follow. Those pages read that copy; none of
  *       them request it again.</li>
  *   <li>The answer is a JSON array of bands: {@code id}, {@code descEn}, {@code descAr},
@@ -39,8 +39,8 @@ public final class ColorConfiguration {
     /** The request, as {@link RequestLog} records it. */
     public static final String REQUEST = "GET " + ENDPOINT;
 
-    /** The session storage key the sign-in page keeps the answer under. */
-    public static final String SESSION_KEY = "colorConfig";
+    /** The local storage key the sign-in page keeps the answer under. */
+    public static final String STORAGE_KEY = "colorConfig";
 
     private static final Gson GSON = new Gson();
 

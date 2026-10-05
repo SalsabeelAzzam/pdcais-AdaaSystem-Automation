@@ -67,9 +67,9 @@ public abstract class BasePage {
                 new Page.WaitForFunctionOptions().setTimeout(30_000));
     }
 
-    /** What the application keeps in this tab's session storage under a key, or null. */
-    public String sessionStorageItem(String key) {
-        Object value = page.evaluate("k => sessionStorage.getItem(k)", key);
+    /** What the application keeps in local storage under a key, or null. */
+    public String localStorageItem(String key) {
+        Object value = page.evaluate("k => localStorage.getItem(k)", key);
         return value == null ? null : String.valueOf(value);
     }
 
