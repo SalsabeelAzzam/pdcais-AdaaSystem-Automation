@@ -2,11 +2,16 @@ package com.adaa.automation.network;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.microsoft.playwright.Response;
+import com.microsoft.playwright.APIResponse;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Route;
 
 import java.math.BigDecimal;
 import java.net.URI;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * The application's color configuration: the performance bands - a percentage range and the
@@ -63,17 +68,38 @@ public final class ColorConfiguration {
         }
     }
 
-    /** Reads an answer in full, waiting for its body to have arrived. */
-    public static Answer read(Response response) {
-        response.finished();
-        return new Answer(response.status(), String.valueOf(response.headerValue("content-type")),
-                response.text());
-    }
-
-    /** Whether a response is the application's answer to the color configuration request. */
-    public static boolean isResponse(Response response) {
-        return "GET".equals(response.request().method())
-                && ENDPOINT.equalsIgnoreCase(URI.create(response.url()).getPath());
+    /**
+     * Runs {@code action} and returns the color configuration answer it caused the page to
+     * receive.
+     *
+     * <p>The answer is captured by routing the request: it is fetched on the page's behalf,
+     * its body kept, and the page fulfilled with that same response. Reading the body from a
+     * {@link com.microsoft.playwright.Response} instead races the sign-in page's navigation -
+     * once the page has moved on Chromium drops the body ({@code Network.getResponseBody:
+     * No resource with given identifier found}).
+     */
+    public static Answer capture(Page page, Runnable action, double timeoutMs) {
+        AtomicReference<Answer> answer = new AtomicReference<>();
+        Predicate<String> matcher = url -> ENDPOINT.equalsIgnoreCase(URI.create(url).getPath());
+        Consumer<Route> handler = route -> {
+            if (!"GET".equals(route.request().method()) || answer.get() != null) {
+                route.fallback();
+                return;
+            }
+            APIResponse fetched = route.fetch();
+            answer.set(new Answer(fetched.status(),
+                    String.valueOf(fetched.headers().get("content-type")), fetched.text()));
+            route.fulfill(new Route.FulfillOptions().setResponse(fetched));
+        };
+        page.route(matcher, handler);
+        try {
+            action.run();
+            page.waitForCondition(() -> answer.get() != null,
+                    new Page.WaitForConditionOptions().setTimeout(timeoutMs));
+            return answer.get();
+        } finally {
+            page.unroute(matcher, handler);
+        }
     }
 
     /** The bands in a color configuration answer. */

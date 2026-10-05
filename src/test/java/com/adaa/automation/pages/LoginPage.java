@@ -3,7 +3,6 @@ package com.adaa.automation.pages;
 import com.adaa.automation.network.ColorConfiguration;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
-import com.microsoft.playwright.Response;
 import com.microsoft.playwright.options.WaitForSelectorState;
 
 /**
@@ -69,9 +68,8 @@ public final class LoginPage extends BasePage {
      */
     public ColorConfiguration.Answer signIn(String user, String secret) {
         open();
-        Response response = page.waitForResponse(ColorConfiguration::isResponse,
-                () -> submitCredentials(user, secret));
-        ColorConfiguration.Answer colorConfiguration = ColorConfiguration.read(response);
+        ColorConfiguration.Answer colorConfiguration = ColorConfiguration.capture(page,
+                () -> submitCredentials(user, secret), 30_000);
         page.waitForURL(url -> !isLoginUrl(url), new Page.WaitForURLOptions().setTimeout(30_000));
         return colorConfiguration;
     }
