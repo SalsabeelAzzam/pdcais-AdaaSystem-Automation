@@ -32,6 +32,8 @@ public abstract class BaseTest {
     protected BrowserContext context;
     protected Page page;
 
+    private boolean tracing;
+
     private final List<String> consoleMessages = Collections.synchronizedList(new ArrayList<>());
     private final List<String> pageErrors = Collections.synchronizedList(new ArrayList<>());
 
@@ -70,6 +72,21 @@ public abstract class BaseTest {
                 .setSnapshots(true)
                 // Do not embed the suite's own source into the trace.
                 .setSources(false));
+        tracing = true;
+    }
+
+    /**
+     * Stops recording this test's trace, for a test about to type the real credentials.
+     *
+     * <p>A trace keeps the value of every fill and the body of every request - the sign-in
+     * request carries the password - and a failed test's trace is uploaded as a CI
+     * artifact. Such a test still leaves a screenshot and the browser's console behind.
+     */
+    protected void stopTracingBeforeTypingCredentials() {
+        if (tracing) {
+            Artifacts.discardTrace(context);
+            tracing = false;
+        }
     }
 
     @AfterMethod(alwaysRun = true)
@@ -80,13 +97,16 @@ public abstract class BaseTest {
                         result.getTestClass().getName(), result.getName());
 
                 Artifacts.screenshot(page, name);
-                Artifacts.trace(context, name);
+                if (tracing) {
+                    Artifacts.trace(context, name);
+                }
                 Artifacts.log(name, "console", consoleMessages);
                 Artifacts.log(name, "pageerrors", pageErrors);
-            } else {
+            } else if (tracing) {
                 Artifacts.discardTrace(context);
             }
         } finally {
+            tracing = false;
             if (context != null) {
                 context.close();
                 context = null;

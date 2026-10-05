@@ -67,6 +67,12 @@ public abstract class BasePage {
                 new Page.WaitForFunctionOptions().setTimeout(30_000));
     }
 
+    /** What the application keeps in this tab's session storage under a key, or null. */
+    public String sessionStorageItem(String key) {
+        Object value = page.evaluate("k => sessionStorage.getItem(k)", key);
+        return value == null ? null : String.valueOf(value);
+    }
+
     public String currentUrl() {
         return page.url();
     }

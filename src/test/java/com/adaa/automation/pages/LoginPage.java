@@ -1,7 +1,9 @@
 package com.adaa.automation.pages;
 
+import com.adaa.automation.network.ColorConfiguration;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Response;
 import com.microsoft.playwright.options.WaitForSelectorState;
 
 /**
@@ -55,14 +57,23 @@ public final class LoginPage extends BasePage {
     }
 
     /**
-     * Signs in and waits until the application has left the sign-in screen.
+     * Signs in and waits until the application has finished signing in: it has loaded its
+     * color configuration and left the sign-in screen.
      *
+     * <p>A sign-in the server accepts is not finished there. The page then requests the
+     * color configuration and moves on only once it has the answer, so the sign-in is
+     * synchronised on that response, not on time.
+     *
+     * @return the color configuration the sign-in waited for, read before the page moved on
      * @throws com.microsoft.playwright.TimeoutError when the sign-in does not succeed
      */
-    public void signIn(String user, String secret) {
+    public ColorConfiguration.Answer signIn(String user, String secret) {
         open();
-        submitCredentials(user, secret);
+        Response response = page.waitForResponse(ColorConfiguration::isResponse,
+                () -> submitCredentials(user, secret));
+        ColorConfiguration.Answer colorConfiguration = ColorConfiguration.read(response);
         page.waitForURL(url -> !isLoginUrl(url), new Page.WaitForURLOptions().setTimeout(30_000));
+        return colorConfiguration;
     }
 
     /**

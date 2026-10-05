@@ -28,6 +28,8 @@
     <playwright.version>1.47.0</playwright.version>
     <testng.version>7.10.2</testng.version>
     <slf4j.version>2.0.13</slf4j.version>
+    <!-- The version Playwright already brings in; declared because the suite reads JSON with it. -->
+    <gson.version>2.11.0</gson.version>
 
     <surefire.version>3.2.5</surefire.version>
     <compiler.plugin.version>3.13.0</compiler.plugin.version>
@@ -50,6 +52,13 @@
       <groupId>org.testng</groupId>
       <artifactId>testng</artifactId>
       <version>${testng.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>${gson.version}</version>
       <scope>test</scope>
     </dependency>
 

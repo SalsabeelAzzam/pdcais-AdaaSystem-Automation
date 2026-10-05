@@ -1,6 +1,7 @@
 package com.adaa.automation.fixtures;
 
 import com.adaa.automation.config.Config;
+import com.adaa.automation.network.ColorConfiguration;
 import com.adaa.automation.pages.LoginPage;
 import com.adaa.automation.utils.PlaywrightManager;
 import com.microsoft.playwright.BrowserContext;
@@ -45,8 +46,14 @@ public final class AuthSession {
      * The session storage keys the application writes when a user signs in. Anything else
      * there - table state, the last menu item, an access-denied origin - belongs to the page
      * that wrote it, and carrying it into another test would leak state between tests.
+     *
+     * <p>{@code colorConfig} is among them: the sign-in page fetches the color configuration
+     * once and keeps it there, and every later page colors its performance figures from that
+     * copy rather than asking again. Without it a test would see pages a real user never
+     * sees.
      */
     private static final List<String> SESSION_KEYS = List.of(
+            ColorConfiguration.SESSION_KEY,
             "token",
             "refreshToken",
             "isMonitoringUser",
